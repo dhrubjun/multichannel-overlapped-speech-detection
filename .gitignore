@@ -218,3 +218,46 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ============================================================
+# Project data
+# ============================================================
+
+data/
+datasets/
+audio/
+
+# Audio files
+*.wav
+*.flac
+*.mp3
+*.m4a
+
+# Model checkpoints / weights
+*.pt
+*.pth
+*.ckpt
+
+# Experiment outputs
+checkpoints/
+outputs/
+runs/
+logs/
+
+# NumPy / processed feature files
+*.npy
+*.npz
+
+# HDF5 data
+*.h5
+*.hdf5
+
+# Temporary files
+*.tmp
+*.temp
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Local environment configuration
+.env
