@@ -118,6 +118,67 @@ class TestAMIAnnotations(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.load()
 
+    
+    def test_positive_duration_gap_is_masked(self):
+        import numpy as np
+        from src.data.frame_labels import generate_valid_mask
+
+        # Speaker A has a transcription gap from 1.0 to 1.2 s
+        self.write_xml(
+            "A",
+            '<gap starttime="1.0" endtime="1.2"/>'
+        )
+        self.write_xml("B", "")
+
+        # Load annotations using our existing loader
+        intervals, uncertain_intervals, issues = self.load()
+
+        # No annotated speech is present
+        self.assertEqual(intervals, [[], []])
+
+        # The gap must be included in uncertain intervals
+        self.assertEqual(uncertain_intervals, [(1.0, 1.2)])
+
+        # The gap must still be reported in the annotation audit
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0][2], "positive-duration gap")
+
+        # Generate a 10 ms frame grid covering 10 seconds
+        frame_times = (np.arange(1000) + 0.5) * 0.01
+
+        # Generate the uncertainty mask
+        valid_mask = generate_valid_mask(
+            uncertain_intervals,
+            frame_times
+        )
+
+        # Frames inside the gap must be excluded
+        inside_gap = (
+            (frame_times >= 1.0) &
+            (frame_times < 1.2)
+        )
+
+        self.assertEqual(int(inside_gap.sum()), 20)
+        self.assertTrue(np.all(~valid_mask[inside_gap]))
+
+        # Frames outside the gap must remain valid
+        self.assertTrue(np.all(valid_mask[~inside_gap]))
+
+    def test_end_before_start(self):
+        self.write_xml(
+            "A",
+            '<vocalsound starttime="5.0" '
+            'endtime="4.0" type="laugh"/>'
+        )
+        self.write_xml("B", "")
+
+        intervals, uncertain, issues = self.load()
+
+        self.assertEqual(intervals, [[], []])
+        self.assertEqual(uncertain, [])
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0][2], "end before start")
+
 
 if __name__ == "__main__":
     unittest.main()
