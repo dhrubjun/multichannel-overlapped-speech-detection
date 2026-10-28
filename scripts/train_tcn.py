@@ -15,6 +15,11 @@ from src.training.engine import train_one_epoch
 from src.training.evaluation import evaluate_model
 from src.training.early_stopping import EarlyStopping
 
+from src.training.class_weights import (
+    count_training_classes,
+    compute_class_weights,
+)
+
 
 TRAIN_MEETINGS = ("ES2008a", "ES2008b", "ES2008c")
 DEV_MEETINGS = ("ES2003a",)
@@ -147,6 +152,13 @@ def main():
         default="outputs/training/m1_logmel_tcn",
     )
 
+    parser.add_argument(
+        "--class-weighting",
+        choices=["none", "sqrt_inverse"],
+        default="none",
+        help="Training loss class-weighting strategy",
+    )
+
     args = parser.parse_args()
 
     # --------------------------------------------------
@@ -248,6 +260,26 @@ def main():
         weight_decay=args.weight_decay,
     )
 
+
+    class_weights = None
+    class_counts = count_training_classes(
+        TRAIN_MEETINGS
+    )
+
+    if args.class_weighting != "none":
+        class_weights = compute_class_weights(
+            class_counts,
+            strategy=args.class_weighting,
+        ).to(device)
+
+    print("\nTRAINING CLASS WEIGHTS")
+
+    if class_weights is None:
+        print("Unweighted cross-entropy")
+    else:
+        for cls, weight in enumerate(class_weights):
+            print(f"Class {cls}: {weight.item():.6f}")
+
     # --------------------------------------------------
     # Early stopping
     # --------------------------------------------------
@@ -277,7 +309,13 @@ def main():
         "device": str(device),
         "smoke_test": args.smoke_test,
         "checkpoint_metric": "overlap_ap",
-        "class_weighting": "none",
+        "class_weighting": args.class_weighting,
+        "class_counts": class_counts.tolist(),
+        "class_weights": (
+            class_weights.cpu().tolist()
+            if class_weights is not None
+            else None
+        ),
         "patience": args.patience,
         "min_delta": args.min_delta,
         "parameters": n_parameters,
@@ -322,6 +360,7 @@ def main():
             optimizer=optimizer,
             device=device,
             max_grad_norm=1.0,
+            class_weights=class_weights,
         )
 
         # Evaluate on development data
