@@ -126,6 +126,42 @@ class TestIPD(unittest.TestCase):
                 sample_rate=8000,
             )
 
+    def test_energy_mask(self):
+        rng = np.random.default_rng(42)
+
+        audio = rng.standard_normal(
+            (8, self.n_samples)
+        ).astype(np.float32)
+
+        original, original_times = extract_ipd(audio)
+
+        masked, masked_times = extract_ipd(
+            audio,
+            mask_threshold_db=-30,
+        )
+
+        self.assertEqual(original.shape, masked.shape)
+
+        np.testing.assert_array_equal(
+            original_times, masked_times
+        )
+
+        self.assertTrue(np.isfinite(masked).all())
+
+        # Masking must never create new phase values.
+        active = np.any(masked != 0, axis=-1)
+
+        np.testing.assert_allclose(
+            masked[active],
+            original[active],
+            atol=1e-6,
+        )
+
+        # With this input, at least some bins should be masked.
+        self.assertGreater(
+            np.count_nonzero(~active), 0
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
