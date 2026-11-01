@@ -1,130 +1,182 @@
-
 # M2: Multichannel IPD Feature Extraction
 
 ## 1. Objective
 
-Investigate whether inter-channel phase difference (IPD)
-features can improve overlapping-speech detection compared
-with the M1 single-channel log-Mel baseline.
+Investigate whether inter-channel phase difference (IPD) features improve overlapping-speech detection compared with the M1 single-channel log-Mel baseline.
 
 ## 2. Feature Configuration
 
-- Dataset: AMI Meeting Corpus, Array 1
-- Microphones: Eight
-- Candidate pairs: 01-05, 02-06, 03-07, 04-08
-- Sampling rate: 16 kHz
-- STFT window: 25 ms, periodic Hann
-- Hop: 10 ms
-- FFT size: 512
-- Frequency bins: 257
-- Representation: cosine and sine of IPD
-- Energy mask: -30 dB relative to each frame's
-  maximum cross-spectrum magnitude
-- Masked bins: Both phase components set to zero
-- Output: 2056 IPD features per frame
+The AMI Array 1 recordings contain eight microphones arranged in a circular array with an approximately 10 cm radius.
 
-The physical microphone numbering still requires
-verification against the AMI array geometry.
+Four fixed microphone pairs were selected for the initial M2 model:
 
-## 3. Validation
+- Array1-01 and Array1-05
+- Array1-02 and Array1-06
+- Array1-03 and Array1-07
+- Array1-04 and Array1-08
 
-Synthetic tests passed for:
-- Feature shape and timestamps
-- Identical microphone signals
-- Known sample delay
-- Silence handling
-- Alignment with M1 log-Mel
-- Invalid inputs
+The physical microphone numbering has not been independently verified. Therefore, these combinations are treated as candidate channel pairs rather than confirmed opposite-microphone pairs.
 
-The optional energy mask also passed validation.
+### STFT and IPD Parameters
 
-Real-audio validation on a five-second ES2008a segment:
-- Audio shape: (8, 80000)
-- Log-Mel shape: (500, 80)
-- IPD shape: (500, 4, 257, 2)
-- Timestamp alignment: PASS
-- Finite output: PASS
+| Parameter | Configuration |
+|---|---|
+| Dataset | AMI Meeting Corpus, Array 1 |
+| Microphones | Eight |
+| Sampling rate | 16 kHz |
+| STFT window | 25 ms, periodic Hann |
+| Frame hop | 10 ms |
+| FFT size | 512 |
+| Frequency bins | 257 |
+| IPD representation | Cosine and sine |
+| Energy mask | -30 dB relative to the maximum cross-spectrum magnitude within each frame |
+| Masked bins | Both phase components set to zero |
+| IPD dimensions | 2,056 per frame |
 
-## 4. Noise-Sensitivity Analysis
+The framing configuration matches the existing M1 log-Mel implementation.
 
-Independent Gaussian noise was added to each microphone,
-with RMS equal to 1% of the overall audio RMS.
+## 3. Multichannel Audio and Synchronization Validation
 
-Across four microphone pairs, the average of the reported
-median phase changes was:
+All eight microphone recordings were validated for the following meetings:
 
-| Energy selection | Phase change |
+- ES2008a
+- ES2008b
+- ES2008c
+- ES2003a
+
+Each meeting passed the checks for matching sample rates, sample counts, channel counts and sample widths.
+
+Cross-correlation analysis was performed at five recording positions for each of the four selected microphone pairs, producing 80 measurements in total.
+
+The measured relative delays ranged from -0.5625 ms to +0.5625 ms.
+
+These delays are physically plausible for the assumed microphone-array dimensions. However, cross-correlation includes acoustic propagation effects and cannot independently establish sample-perfect synchronization or exclude small recording offsets.
+
+No artificial time alignment was applied. The original microphone sample indices were preserved to retain the spatial arrival-time information required for IPD extraction.
+
+## 4. IPD Implementation and Validation
+
+IPD was calculated from the complex STFT cross-spectrum:
+
+\[
+C_{ij}(t,f)=X_i(t,f)X_j^*(t,f)
+\]
+
+The phase representation uses:
+
+\[
+\cos(\mathrm{IPD}_{ij})=\frac{\Re(C_{ij})}{|C_{ij}|}
+\]
+
+\[
+\sin(\mathrm{IPD}_{ij})=\frac{\Im(C_{ij})}{|C_{ij}|}
+\]
+
+Negligible-energy bins and bins suppressed by the optional energy mask are represented by zero-valued cosine and sine components.
+
+Synthetic tests passed for feature dimensions, timestamp alignment, identical microphone signals, known sample delay, silence and invalid inputs.
+
+The optional energy-masking implementation also passed validation.
+
+### Real-Audio Validation
+
+A five-second segment from ES2008a was used.
+
+| Property | Result |
+|---|---|
+| Audio shape | (8, 80000) |
+| Log-Mel shape | (500, 80) |
+| IPD shape | (500, 4, 257, 2) |
+| Timestamp alignment | PASS |
+| Finite output | PASS |
+
+All 500 corresponding label frames were valid.
+
+## 5. Noise-Sensitivity Analysis
+
+Independent Gaussian noise was added to each microphone recording, with noise RMS equal to 1% of the overall audio RMS.
+
+Across four microphone pairs, the average of the reported median phase changes was:
+
+| Energy selection | Median phase change, averaged across pairs |
 |---|---:|
-| Lowest 20% | 78.91 degrees |
-| Highest 20% | 0.63 degrees |
+| Lowest 20% | 78.91° |
+| Highest 20% | 0.63° |
 
-Weak-energy bins were substantially more sensitive to
-the added noise.
+Weak-energy frequency bins were substantially more sensitive to the added noise than high-energy bins.
 
-These values measure noise-induced phase changes, not
-absolute phase estimation accuracy.
+These results measure noise-induced phase changes, not absolute phase estimation accuracy.
 
-## 5. Energy Threshold Comparison
+## 6. Energy Threshold Comparison
 
-Results for a five-second ES2008a segment:
+Relative energy masking was evaluated using thresholds of -20, -30 and -40 dB.
 
 | Threshold | Mean bins retained | Mean median phase change |
 |---|---:|---:|
-| No mask | 100.00% | 7.348 degrees |
-| -40 dB | 55.17% | 2.563 degrees |
-| -30 dB | 28.28% | 1.117 degrees |
-| -20 dB | 10.49% | 0.379 degrees |
+| No mask | 100.00% | 7.348° |
+| -40 dB | 55.17% | 2.563° |
+| -30 dB | 28.28% | 1.117° |
+| -20 dB | 10.49% | 0.379° |
 
-A -30 dB threshold was selected as an initial compromise
-between retaining frequency bins and reducing sensitivity
-to the injected noise.
+The -30 dB threshold was selected as an initial compromise between retaining frequency bins and reducing sensitivity to injected noise.
 
-This threshold has not been validated for classification
-performance.
+This threshold has not been optimized or validated for overlapped-speech classification performance.
 
-## 6. Class-Wise Mask Analysis
+The energy mask retains the original frequency-bin positions, setting suppressed IPD components to zero. Consequently, masking does not reduce the dimensionality of the dense feature representation.
 
-Sixty five-second segments were selected from training
-meeting ES2008a. The selection intentionally included
-overlap-rich segments.
+## 7. Class-Wise Mask Analysis
 
-Only frames accepted by the annotation valid mask
-were included.
+Sixty five-second segments were sampled from training meeting ES2008a. The selection intentionally included overlap-rich segments.
 
-| Class | Frames | Mean bins retained |
+Only frames accepted by the existing annotation valid mask were included.
+
+| Speech class | Valid frames | Mean bins retained |
 |---|---:|---:|
-| No annotated speech | 3730 | 22.35% |
-| Single speaker | 23279 | 25.82% |
-| Overlap | 2579 | 26.36% |
+| No annotated speech | 3,730 | 22.35% |
+| Single speaker | 23,279 | 25.82% |
+| Overlap | 2,579 | 26.36% |
 
-Values are averaged across four microphone pairs.
+Retention percentages are averaged across four microphone pairs.
 
-The -30 dB mask did not disproportionately suppress
-overlap frames in this sample.
+The -30 dB mask did not disproportionately suppress overlapping-speech frames in this sampled data.
 
-## 7. Initial M2 Input
+Because overlap-rich segments were deliberately selected, these results should not be interpreted as representative class proportions for the entire training dataset.
 
-- Log-Mel: 80 dimensions
-- IPD: 4 pairs x 257 bins x 2 components
-- Total: 2136 dimensions per frame
+## 8. Initial M2 Model Input
 
-The M1 TCN temporal architecture will be retained.
-Only the input projection will need adaptation.
+The initial M2 input will combine:
 
-## 8. Limitations
+- 80 log-Mel features from Array1-01.
+- 2,056 IPD features from four microphone pairs.
 
-- Only selected short audio segments were analyzed.
+The total input dimensionality is:
+
+\[
+80+(4\times257\times2)=2136
+\]
+
+The existing M1 TCN temporal architecture will be preserved, while its input projection will be adapted to accept the combined features.
+
+## 9. Limitations
+
+- Only selected short audio segments were used for detailed IPD experiments.
 - Real-audio phase ground truth is unavailable.
 - Physical microphone channel ordering remains unverified.
-- Phase stability does not guarantee classification gains.
-- Five-second clips use local boundary padding.
-- Masking does not reduce dense feature dimensionality.
-- No held-out test audio was used for parameter selection.
+- Cross-correlation measurements do not prove sample-perfect synchronization.
+- Greater phase stability does not guarantee improved classification performance.
+- Independently extracted five-second clips use local boundary padding.
+- Energy masking does not reduce the dense input dimensionality.
+- The -30 dB threshold has not been optimized for overlap detection.
+- The held-out test set was not used for feature selection or parameter tuning.
 
-## 9. Next Steps
+## 10. Next Steps
 
-- Verify microphone numbering and geometry under M2.1.
-- Finalize IPD representation after any required pair changes.
-- Implement combined log-Mel and IPD features under M2.3.
-- Compute training-only normalization statistics.
-- Compare M2 with the unchanged M1 baseline.
+- Retain the selected pairs as fixed candidate channel combinations for the initial M2 experiment.
+- Implement combined log-Mel and IPD feature extraction under M2.3.
+- Validate full-recording feature and label alignment.
+- Implement memory-efficient feature loading.
+- Compute required normalization statistics using training data only.
+- Adapt the TCN input projection and train M2.
+- Compare M2 against the unchanged M1 baseline using the development set.
+
+The physical microphone mapping should be revisited if authoritative channel-position information becomes available.
