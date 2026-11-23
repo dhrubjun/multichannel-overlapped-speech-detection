@@ -33,7 +33,7 @@ def main():
     parser.add_argument(
         "--meeting",
         required=True,
-        choices=MEETINGS,
+        help="AMI meeting ID, for example ES2002a",
     )
 
     parser.add_argument(
@@ -89,7 +89,7 @@ def main():
 
     smoke_test = n_frames < total_frames
 
-    output_dir = PROJECT_ROOT / "outputs" / "features"
+    output_dir = Path(r"D:\DeepLearning_AMI\m2_features")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     suffix = "_smoke" if smoke_test else ""
