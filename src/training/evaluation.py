@@ -78,6 +78,13 @@ def evaluate_model(model, dataloader, device="cpu"):
 
             logits = model(features)
 
+            # Run XPU inference on GPU, then perform
+            # evaluation indexing and metrics on CPU.
+            if logits.device.type == "xpu":
+                logits = logits.cpu()
+                labels = labels.cpu()
+                usable = usable.cpu()
+
             valid_logits = logits[usable]
             valid_labels = labels[usable]
 

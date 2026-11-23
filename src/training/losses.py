@@ -39,6 +39,28 @@ def masked_cross_entropy(
     if not usable.any().item():
         raise ValueError("Batch has no valid labeled frames")
 
+    # Intel XPU compatibility:
+    # Avoid Boolean indexing of GPU tensors.
+    if logits.device.type == "xpu":
+        targets = labels.masked_fill(~usable, -100)
+
+        # Validate class labels on CPU.
+        valid_targets = targets.detach().cpu()
+        valid_targets = valid_targets[valid_targets != -100]
+
+        if not torch.all(
+            (valid_targets >= 0) & (valid_targets <= 2)
+        ).item():
+            raise ValueError("Invalid class label")
+
+        return F.cross_entropy(
+            logits.transpose(1, 2),
+            targets,
+            weight=class_weights,
+            ignore_index=-100,
+            reduction=reduction,
+        )
+
     selected_logits = logits[usable]
     selected_labels = labels[usable]
 
