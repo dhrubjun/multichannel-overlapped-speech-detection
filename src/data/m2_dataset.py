@@ -24,6 +24,7 @@ class M2SequenceDataset(Dataset):
         sequence_length=200,
         stride=100,
         normalization_stats=None,
+        feature_root=None,
     ):
         if sequence_length <= 0:
             raise ValueError("Sequence length must be positive")
@@ -37,6 +38,12 @@ class M2SequenceDataset(Dataset):
         self.windows = []
 
         root = Path(project_root)
+
+        features_dir = (
+            Path(feature_root)
+            if feature_root is not None
+            else root / "outputs" / "features"
+        )
 
         self.mean = None
         self.std = None
@@ -67,10 +74,7 @@ class M2SequenceDataset(Dataset):
                 raise ValueError("Invalid normalization stds")
 
         for meeting in meetings:
-            feature_path = (
-                root / "outputs" / "features"
-                / f"{meeting}_m2_combined.npy"
-            )
+            feature_path = features_dir / f"{meeting}_m2_combined.npy"
 
             label_path = (
                 root / "outputs" / "labels"
